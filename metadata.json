@@ -1,0 +1,6 @@
+{
+  "name": "AuraWall - AI Phone Wallpaper Studio",
+  "description": "Mobile-first AI wallpaper generator with 4 variations, remixing, 1K/2K/4K resolution, aspect ratio control, and live lock screen preview.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
