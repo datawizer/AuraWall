@@ -5,10 +5,49 @@ import {
   getPermissionsAsync,
   requestPermissionsAsync,
 } from 'expo-media-library';
-import * as MediaLibraryLegacy from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
-import { sanitizeFilename, WallpaperItem } from '../utils/wallpaper-engine';
+import {
+  sanitizeFilename,
+  WallpaperItem,
+  prepareWallpaperFileData,
+} from '../utils/wallpaper-engine';
+
+/**
+ * Persists wallpaper image/vector data to the device local file system.
+ * Handles SVG XML (UTF-8), base64 raster images (clean base64), and remote downloads.
+ */
+async function writeWallpaperToDisk(
+  wallpaper: WallpaperItem,
+  directory: string
+): Promise<{ fileUri: string; mimeType: string }> {
+  const fileData = prepareWallpaperFileData(wallpaper);
+  const filename = sanitizeFilename(wallpaper.prompt, wallpaper.id).replace(/\.png$/i, fileData.extension);
+  const fileUri = `${directory}${filename}`;
+
+  if (fileData.isRemote && fileData.remoteUrl) {
+    const downloadResult = await FileSystem.downloadAsync(fileData.remoteUrl, fileUri);
+    if (downloadResult.status !== 200) {
+      throw new Error(`Failed to download image: status ${downloadResult.status}`);
+    }
+    return { fileUri, mimeType: fileData.mimeType };
+  }
+
+  if (fileData.encoding === 'base64') {
+    if (!fileData.content) {
+      throw new Error('Invalid base64 image data');
+    }
+    await FileSystem.writeAsStringAsync(fileUri, fileData.content, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  } else {
+    await FileSystem.writeAsStringAsync(fileUri, fileData.content, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+  }
+
+  return { fileUri, mimeType: fileData.mimeType };
+}
 
 export const mediaService = {
   /**
@@ -18,94 +57,59 @@ export const mediaService = {
     wallpaper: WallpaperItem
   ): Promise<{ success: boolean; message: string }> {
     try {
-      // Specifically request photo-only permission to prevent requesting unused audio/video permissions
+      // AuraWall only saves wallpapers to the user's gallery and never reads from it.
+      // Requesting write-only access avoids asking for broad photo read permissions,
+      // which is privacy-friendly, works seamlessly in Expo Go, and prevents Android permission errors.
       let hasPermission = false;
       try {
-        let permission = await getPermissionsAsync(false, ['photo']);
+        let permission = await getPermissionsAsync(true);
         if (!permission.granted) {
-          permission = await requestPermissionsAsync(false, ['photo']);
+          permission = await requestPermissionsAsync(true);
         }
         hasPermission = permission.granted || permission.status === 'granted';
       } catch (permErr) {
-        console.warn('Granular photo permission error, falling back to write-only:', permErr);
-      }
-
-      if (!hasPermission) {
-        // Fallback: try write-only request which does not require audio or broad read permissions
-        try {
-          const writeOnlyPerm = await requestPermissionsAsync(true);
-          hasPermission = writeOnlyPerm.granted || writeOnlyPerm.status === 'granted';
-        } catch (writeErr) {
-          console.warn('Write-only permission error:', writeErr);
-        }
+        // In scoped storage environments (Android 10+) or edge-case runners, write permission
+        // check may throw even though saving to MediaStore via ContentResolver succeeds.
+        console.warn('Write-only permission check notice, proceeding to save:', permErr);
+        hasPermission = true;
       }
 
       if (!hasPermission) {
         return {
           success: false,
-          message: 'Permission to access photo library was denied. Please allow photo permissions in settings.',
+          message: 'Permission to save photos was denied. Please allow photo permissions in settings.',
         };
       }
 
-      const filename = sanitizeFilename(wallpaper.prompt, wallpaper.id);
-      let targetUri = `${FileSystem.documentDirectory}${filename}`;
+      // Write wallpaper to disk (robustly handling SVG UTF-8 or base64 raster)
+      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory || '';
+      const { fileUri } = await writeWallpaperToDisk(wallpaper, baseDir);
 
-      if (wallpaper.imageUrl.startsWith('data:image/')) {
-        // Base64 data URL
-        const base64Data = wallpaper.imageUrl.split(',')[1];
-        if (!base64Data) {
-          throw new Error('Invalid base64 image data');
-        }
+      // Create asset in user's photo gallery using modern SDK 58 Asset API
+      const asset = await Asset.create(fileUri);
+      let albumSaved = false;
 
-        await FileSystem.writeAsStringAsync(targetUri, base64Data, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } else if (wallpaper.imageUrl.startsWith('http://') || wallpaper.imageUrl.startsWith('https://')) {
-        // Remote file URL
-        const downloadResult = await FileSystem.downloadAsync(wallpaper.imageUrl, targetUri);
-        if (downloadResult.status !== 200) {
-          throw new Error(`Failed to download image: status ${downloadResult.status}`);
-        }
-      } else {
-        // Fallback for raw SVG XML
-        targetUri = targetUri.replace(/\.png$/i, '.svg');
-        const xml = wallpaper.rawSvgXml || wallpaper.imageUrl;
-        await FileSystem.writeAsStringAsync(targetUri, xml, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-      }
-
-      // Create asset using the modern SDK 58 Asset API, with legacy fallback
+      // Best-effort attempt to organize into the "AuraWall" album.
+      // Note: In write-only mode or Expo Go on modern Android, querying or creating albums
+      // may be restricted, but the wallpaper is already successfully saved to the camera roll.
       try {
-        const asset = await Asset.create(targetUri);
-        try {
-          const existingAlbum = await Album.get('AuraWall');
-          if (existingAlbum) {
-            await existingAlbum.add(asset);
-          } else {
-            await Album.create('AuraWall', [asset]);
-          }
-        } catch (albumErr) {
-          console.warn('Could not add to "AuraWall" album, but wallpaper is saved in Photos:', albumErr);
+        const existingAlbum = await Album.get('AuraWall');
+        if (existingAlbum) {
+          await existingAlbum.add(asset);
+        } else {
+          await Album.create('AuraWall', [asset]);
         }
-      } catch (assetErr) {
-        console.warn('Modern Asset.create error, falling back to legacy MediaLibrary API:', assetErr);
-        const legacyAsset = await MediaLibraryLegacy.createAssetAsync(targetUri);
-        try {
-          const existingAlbum = await MediaLibraryLegacy.getAlbumAsync('AuraWall');
-          if (existingAlbum) {
-            await MediaLibraryLegacy.addAssetsToAlbumAsync([legacyAsset], existingAlbum, false);
-          } else {
-            await MediaLibraryLegacy.createAlbumAsync('AuraWall', legacyAsset, false);
-          }
-        } catch (legacyAlbumErr) {
-          console.warn('Could not add to "AuraWall" legacy album, but wallpaper is saved in Photos:', legacyAlbumErr);
-        }
+        albumSaved = true;
+      } catch (albumErr) {
+        // Non-critical: asset is already saved to Photos
+        console.log('Saved to Photos (album categorization skipped in write-only mode):', albumErr);
       }
 
       return {
         success: true,
-        message: 'Wallpaper saved to your Photos in the "AuraWall" album!',
+        message: albumSaved
+          ? 'Wallpaper saved to your Photos in the "AuraWall" album!'
+          : 'Wallpaper saved to your Photos!',
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -129,31 +133,13 @@ export const mediaService = {
         return false;
       }
 
-      const filename = sanitizeFilename(wallpaper.prompt, wallpaper.id);
-      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+      const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || '';
+      const { fileUri, mimeType } = await writeWallpaperToDisk(wallpaper, baseDir);
 
-      if (wallpaper.imageUrl.startsWith('data:image/')) {
-        const base64Data = wallpaper.imageUrl.split(',')[1];
-        if (base64Data) {
-          await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'image/png',
-            dialogTitle: `AuraWall: ${wallpaper.variationTitle}`,
-          });
-          return true;
-        }
-      } else if (wallpaper.imageUrl.startsWith('http://') || wallpaper.imageUrl.startsWith('https://')) {
-        const download = await FileSystem.downloadAsync(wallpaper.imageUrl, fileUri);
-        await Sharing.shareAsync(download.uri, {
-          dialogTitle: `AuraWall: ${wallpaper.variationTitle}`,
-        });
-        return true;
-      }
-
-      // Share prompt text
-      await Clipboard.setStringAsync(wallpaper.prompt);
+      await Sharing.shareAsync(fileUri, {
+        mimeType,
+        dialogTitle: `AuraWall: ${wallpaper.variationTitle}`,
+      });
       return true;
     } catch (err) {
       console.warn('Error sharing wallpaper:', err);

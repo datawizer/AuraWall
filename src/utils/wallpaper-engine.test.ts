@@ -8,6 +8,7 @@ import {
   sanitizeFilename,
   generateThemedWallpaperSvgXml,
   generateThemedWallpaperSvg,
+  prepareWallpaperFileData,
   VARIATION_DIRECTIVES,
 } from './wallpaper-engine.ts';
 
@@ -74,4 +75,68 @@ test('generateThemedWallpaperSvg produces valid data URL with dimensions', () =>
   const decoded = decodeURIComponent(svgUrl);
   assert.ok(decoded.includes('<svg'));
   assert.ok(decoded.includes('viewBox="0 0 900 1600"'));
+});
+
+test('prepareWallpaperFileData correctly identifies and decodes SVG data URIs as UTF-8 XML', () => {
+  const svgUrl = generateThemedWallpaperSvg('cyberpunk city', 0, '9:16');
+  const wallpaper = {
+    id: 'test-1',
+    prompt: 'cyberpunk city',
+    aspectRatio: '9:16' as const,
+    imageSize: '2K' as const,
+    model: 'gemini-3.1-flash-image-preview' as const,
+    imageUrl: svgUrl,
+    variationIndex: 0,
+    variationTitle: 'Cyberpunk',
+    createdAt: Date.now(),
+  };
+
+  const fileData = prepareWallpaperFileData(wallpaper);
+  assert.equal(fileData.extension, '.svg');
+  assert.equal(fileData.mimeType, 'image/svg+xml');
+  assert.equal(fileData.encoding, 'utf8');
+  assert.ok(fileData.content.startsWith('<svg'));
+  assert.ok(fileData.content.endsWith('</svg>'));
+  assert.equal(fileData.isRemote, false);
+});
+
+test('prepareWallpaperFileData cleanly extracts base64 raster data without URI prefixes or whitespace', () => {
+  const wallpaper = {
+    id: 'test-2',
+    prompt: 'minimalist landscape',
+    aspectRatio: '16:9' as const,
+    imageSize: '4K' as const,
+    model: 'gemini-3.1-flash-image-preview' as const,
+    imageUrl: 'data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg== \n',
+    variationIndex: 1,
+    variationTitle: 'Minimalist',
+    createdAt: Date.now(),
+  };
+
+  const fileData = prepareWallpaperFileData(wallpaper);
+  assert.equal(fileData.extension, '.png');
+  assert.equal(fileData.mimeType, 'image/png');
+  assert.equal(fileData.encoding, 'base64');
+  assert.ok(!fileData.content.includes('data:image/png;base64,'));
+  assert.ok(!fileData.content.includes(' '));
+  assert.ok(!fileData.content.includes('\n'));
+  assert.ok(fileData.content.startsWith('iVBORw0KGgo'));
+});
+
+test('prepareWallpaperFileData recognizes remote HTTP/HTTPS image URLs', () => {
+  const wallpaper = {
+    id: 'test-3',
+    prompt: 'aurora borealis',
+    aspectRatio: '9:16' as const,
+    imageSize: '1K' as const,
+    model: 'gemini-3.1-flash-image-preview' as const,
+    imageUrl: 'https://images.unsplash.com/photo-example.jpg',
+    variationIndex: 2,
+    variationTitle: 'Aurora',
+    createdAt: Date.now(),
+  };
+
+  const fileData = prepareWallpaperFileData(wallpaper);
+  assert.equal(fileData.isRemote, true);
+  assert.equal(fileData.remoteUrl, 'https://images.unsplash.com/photo-example.jpg');
 });

@@ -349,3 +349,88 @@ export function generateThemedWallpaperSvg(
   const xml = generateThemedWallpaperSvgXml(prompt, variationIndex, aspectRatio);
   return `data:image/svg+xml;utf8,${encodeURIComponent(xml)}`;
 }
+
+export interface WallpaperFileData {
+  extension: string; // '.png' | '.svg' | '.jpg' | '.webp'
+  mimeType: string;  // 'image/png' | 'image/svg+xml' | etc.
+  encoding: 'base64' | 'utf8';
+  content: string;   // clean base64 string or utf8 XML
+  isRemote: boolean;
+  remoteUrl?: string;
+}
+
+/**
+ * Normalizes and extracts file persistence data (extension, encoding, content)
+ * from any wallpaper item (Gemini base64 raster, procedural SVG, or remote URL).
+ */
+export function prepareWallpaperFileData(wallpaper: WallpaperItem): WallpaperFileData {
+  const isSvg =
+    !!wallpaper.rawSvgXml ||
+    wallpaper.imageUrl.startsWith('data:image/svg+xml') ||
+    wallpaper.imageUrl.trim().startsWith('<svg');
+
+  if (isSvg) {
+    let xml = wallpaper.rawSvgXml || '';
+    if (!xml) {
+      if (wallpaper.imageUrl.includes(';utf8,')) {
+        xml = decodeURIComponent(wallpaper.imageUrl.split(';utf8,')[1]);
+      } else if (wallpaper.imageUrl.includes(';base64,')) {
+        const base64Part = wallpaper.imageUrl.split(';base64,')[1]?.replace(/\s/g, '') || '';
+        return {
+          extension: '.svg',
+          mimeType: 'image/svg+xml',
+          encoding: 'base64',
+          content: base64Part,
+          isRemote: false,
+        };
+      } else if (wallpaper.imageUrl.trim().startsWith('<svg')) {
+        xml = wallpaper.imageUrl;
+      } else {
+        xml = decodeURIComponent(wallpaper.imageUrl.replace(/^data:image\/svg\+xml;[^,]*,/, ''));
+      }
+    }
+    return {
+      extension: '.svg',
+      mimeType: 'image/svg+xml',
+      encoding: 'utf8',
+      content: xml,
+      isRemote: false,
+    };
+  }
+
+  if (wallpaper.imageUrl.startsWith('http://') || wallpaper.imageUrl.startsWith('https://')) {
+    return {
+      extension: '.png',
+      mimeType: 'image/png',
+      encoding: 'utf8',
+      content: '',
+      isRemote: true,
+      remoteUrl: wallpaper.imageUrl,
+    };
+  }
+
+  // Base64 raster image (PNG, JPEG, WEBP)
+  let ext = '.png';
+  let mimeType = 'image/png';
+  const mimeMatch = wallpaper.imageUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,/);
+  if (mimeMatch && mimeMatch[1]) {
+    const sub = mimeMatch[1].toLowerCase();
+    ext = sub === 'jpeg' ? '.jpg' : sub === 'webp' ? '.webp' : '.png';
+    mimeType = `image/${sub}`;
+  }
+
+  // Extract pure base64 characters, stripping data URI prefix and any whitespace
+  const rawData = wallpaper.imageUrl.includes(',')
+    ? wallpaper.imageUrl.split(',')[1]
+    : wallpaper.imageUrl;
+  const cleanBase64 = (rawData || '').replace(/\s/g, '');
+
+  return {
+    extension: ext,
+    mimeType,
+    encoding: 'base64',
+    content: cleanBase64,
+    isRemote: false,
+  };
+}
+
