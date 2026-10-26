@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
 
   // Realistic Lock Screen Overlay
   lockScreenOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
     justifyContent: 'space-between',
     padding: 16,

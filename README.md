@@ -64,17 +64,29 @@ AuraWall/
    ```
    *You can also set your API key directly inside the app under Settings.*
 
-### Running the App
+### Running the App with Expo Go
 
-Start the Expo development server:
-```bash
-npm start
-```
+1. Make sure your phone and development machine are connected to the same Wi-Fi network.
+2. Start the Expo development server:
+   ```bash
+   npm start
+   ```
+3. Open the app:
+   - **Android**: Open the **Expo Go** app and tap **Scan QR code**, then scan the QR code in your terminal.
+   - **iOS**: Open the native **Camera** app, point it at the QR code in your terminal, and tap the Expo banner to launch in Expo Go.
 
-- Scan the QR code with **Expo Go** (Android) or the **Camera app** (iOS).
-- Press `a` in the terminal to run on Android Emulator.
-- Press `i` to run on iOS Simulator.
-- Press `w` to run on Web.
+> **Tip (Different Wi-Fi or Hotspot / Firewalls):**
+> If your phone cannot connect over LAN due to router client isolation or mobile hotspot, use the tunnel mode:
+> ```bash
+> npm run tunnel
+> ```
+
+Other shortcut keys in the Expo terminal:
+- Press `r` to reload the app
+- Press `m` to toggle the developer menu
+- Press `a` to open in Android Emulator
+- Press `i` to open in iOS Simulator
+- Press `w` to open in Web browser
 
 ### Running Tests
 

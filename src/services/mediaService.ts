@@ -1,5 +1,11 @@
-import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
+import {
+  Asset,
+  Album,
+  getPermissionsAsync,
+  requestPermissionsAsync,
+} from 'expo-media-library';
+import * as MediaLibraryLegacy from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { sanitizeFilename, WallpaperItem } from '../utils/wallpaper-engine';
@@ -12,8 +18,29 @@ export const mediaService = {
     wallpaper: WallpaperItem
   ): Promise<{ success: boolean; message: string }> {
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
+      // Specifically request photo-only permission to prevent requesting unused audio/video permissions
+      let hasPermission = false;
+      try {
+        let permission = await getPermissionsAsync(false, ['photo']);
+        if (!permission.granted) {
+          permission = await requestPermissionsAsync(false, ['photo']);
+        }
+        hasPermission = permission.granted || permission.status === 'granted';
+      } catch (permErr) {
+        console.warn('Granular photo permission error, falling back to write-only:', permErr);
+      }
+
+      if (!hasPermission) {
+        // Fallback: try write-only request which does not require audio or broad read permissions
+        try {
+          const writeOnlyPerm = await requestPermissionsAsync(true);
+          hasPermission = writeOnlyPerm.granted || writeOnlyPerm.status === 'granted';
+        } catch (writeErr) {
+          console.warn('Write-only permission error:', writeErr);
+        }
+      }
+
+      if (!hasPermission) {
         return {
           success: false,
           message: 'Permission to access photo library was denied. Please allow photo permissions in settings.',
@@ -21,7 +48,7 @@ export const mediaService = {
       }
 
       const filename = sanitizeFilename(wallpaper.prompt, wallpaper.id);
-      const fileUri = `${FileSystem.documentDirectory}${filename}`;
+      let targetUri = `${FileSystem.documentDirectory}${filename}`;
 
       if (wallpaper.imageUrl.startsWith('data:image/')) {
         // Base64 data URL
@@ -30,25 +57,51 @@ export const mediaService = {
           throw new Error('Invalid base64 image data');
         }
 
-        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        await FileSystem.writeAsStringAsync(targetUri, base64Data, {
           encoding: FileSystem.EncodingType.Base64,
         });
       } else if (wallpaper.imageUrl.startsWith('http://') || wallpaper.imageUrl.startsWith('https://')) {
         // Remote file URL
-        const downloadResult = await FileSystem.downloadAsync(wallpaper.imageUrl, fileUri);
+        const downloadResult = await FileSystem.downloadAsync(wallpaper.imageUrl, targetUri);
         if (downloadResult.status !== 200) {
           throw new Error(`Failed to download image: status ${downloadResult.status}`);
         }
       } else {
         // Fallback for raw SVG XML
+        targetUri = targetUri.replace(/\.png$/i, '.svg');
         const xml = wallpaper.rawSvgXml || wallpaper.imageUrl;
-        await FileSystem.writeAsStringAsync(fileUri.replace('.png', '.svg'), xml, {
+        await FileSystem.writeAsStringAsync(targetUri, xml, {
           encoding: FileSystem.EncodingType.UTF8,
         });
       }
 
-      const asset = await MediaLibrary.createAssetAsync(fileUri);
-      await MediaLibrary.createAlbumAsync('AuraWall', asset, false);
+      // Create asset using the modern SDK 58 Asset API, with legacy fallback
+      try {
+        const asset = await Asset.create(targetUri);
+        try {
+          const existingAlbum = await Album.get('AuraWall');
+          if (existingAlbum) {
+            await existingAlbum.add(asset);
+          } else {
+            await Album.create('AuraWall', [asset]);
+          }
+        } catch (albumErr) {
+          console.warn('Could not add to "AuraWall" album, but wallpaper is saved in Photos:', albumErr);
+        }
+      } catch (assetErr) {
+        console.warn('Modern Asset.create error, falling back to legacy MediaLibrary API:', assetErr);
+        const legacyAsset = await MediaLibraryLegacy.createAssetAsync(targetUri);
+        try {
+          const existingAlbum = await MediaLibraryLegacy.getAlbumAsync('AuraWall');
+          if (existingAlbum) {
+            await MediaLibraryLegacy.addAssetsToAlbumAsync([legacyAsset], existingAlbum, false);
+          } else {
+            await MediaLibraryLegacy.createAlbumAsync('AuraWall', legacyAsset, false);
+          }
+        } catch (legacyAlbumErr) {
+          console.warn('Could not add to "AuraWall" legacy album, but wallpaper is saved in Photos:', legacyAlbumErr);
+        }
+      }
 
       return {
         success: true,

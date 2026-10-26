@@ -2,6 +2,7 @@
   "expo": {
     "name": "AuraWall",
     "slug": "aurawall",
+    "scheme": "aurawall",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -34,9 +35,11 @@
         "expo-media-library",
         {
           "photosPermission": "Allow AuraWall to save wallpapers to your photos.",
-          "savePhotosPermission": "Allow AuraWall to save wallpapers to your photos."
+          "savePhotosPermission": "Allow AuraWall to save wallpapers to your photos.",
+          "granularPermissions": ["photo"]
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }
