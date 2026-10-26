@@ -1,11 +1,26 @@
 import React from 'react';
 import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+  useWindowDimensions,
+} from 'react-native';
+import {
+  Smartphone,
+  Maximize2,
+  RefreshCw,
+  Heart,
+  Sparkles,
+} from 'lucide-react-native';
+import {
   WallpaperItem,
   AspectRatio,
-  getAspectRatioStyle,
+  getAspectRatioNumeric,
   VARIATION_DIRECTIVES,
 } from '../utils/wallpaper-engine';
-import { Maximize2, RefreshCw, Heart, Sparkles, Smartphone, Download } from 'lucide-react';
+import { WallpaperRenderer } from './WallpaperRenderer';
 
 interface WallpaperGridProps {
   wallpapers: (WallpaperItem | null)[];
@@ -30,25 +45,27 @@ export const WallpaperGrid: React.FC<WallpaperGridProps> = ({
   onRegenerateSlot,
   favorites,
 }) => {
-  const aspectClass = getAspectRatioStyle(aspectRatio);
+  const { width } = useWindowDimensions();
+  const numericRatio = getAspectRatioNumeric(aspectRatio);
+
+  // Calculate card width for 2-column layout with padding and gap
+  // container has horizontal padding: 16 * 2 = 32, gap between columns = 12
+  const cardWidth = Math.max(140, (width - 32 - 12) / 2);
+  const cardHeight = Math.min(cardWidth / numericRatio, cardWidth * 1.85);
 
   return (
-    <div className="w-full space-y-3">
+    <View style={styles.container}>
       {/* Section Header */}
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <Smartphone className="w-4 h-4 text-cyan-400" />
-          <h2 className="text-sm font-bold text-white tracking-wide uppercase">
-            4 Generated Variations
-          </h2>
-        </div>
-        <span className="text-xs text-slate-400 font-medium">
-          Tap any wallpaper to view full screen & remix
-        </span>
-      </div>
+      <View style={styles.headerRow}>
+        <View style={styles.headerTitleRow}>
+          <Smartphone size={16} color="#22d3ee" />
+          <Text style={styles.headerTitle}>4 GENERATED VARIATIONS</Text>
+        </View>
+        <Text style={styles.headerSubtitle}>Tap to inspect & remix</Text>
+      </View>
 
-      {/* 4 Variations Grid (2x2 on mobile & desktop) */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      {/* 2x2 Grid */}
+      <View style={styles.grid}>
         {[0, 1, 2, 3].map((slotIndex) => {
           const item = wallpapers[slotIndex];
           const isSlotLoading = loadingSlots[slotIndex];
@@ -56,147 +73,378 @@ export const WallpaperGrid: React.FC<WallpaperGridProps> = ({
           const isFavorite = item ? favorites.has(item.id) : false;
 
           return (
-            <div
+            <View
               key={slotIndex}
-              className={`group relative rounded-2xl sm:rounded-3xl overflow-hidden glass-card border border-white/10 transition-all shadow-xl hover:shadow-cyan-500/10 hover:border-cyan-500/40 ${aspectClass} flex flex-col justify-between`}
+              style={[
+                styles.cardContainer,
+                { width: cardWidth, height: cardHeight },
+              ]}
             >
-              {/* If slot is loading */}
-              {isSlotLoading ? (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-                  <div className="relative w-12 h-12 flex items-center justify-center mb-3">
-                    <div className="absolute inset-0 rounded-full border-2 border-cyan-500/20 border-t-cyan-400 animate-spin" />
-                    <Sparkles className="w-5 h-5 text-cyan-300 animate-pulse" />
-                  </div>
-                  <div className="text-center space-y-1 max-w-[140px]">
-                    <span className="text-[11px] font-bold text-cyan-300 block">
-                      Variation #{slotIndex + 1}
-                    </span>
-                    <p className="text-[10px] text-slate-400 font-medium truncate">
-                      {directive.title}
-                    </p>
-                  </div>
-                  {/* Shimmer bar */}
-                  <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden mt-3">
-                    <div className="w-full h-full bg-gradient-to-r from-cyan-500 to-indigo-500 animate-shimmer" />
-                  </div>
-                </div>
-              ) : null}
+              {/* Slot Loading Overlay */}
+              {isSlotLoading && (
+                <View style={styles.loadingOverlay}>
+                  <View style={styles.spinnerContainer}>
+                    <ActivityIndicator size="small" color="#22d3ee" />
+                  </View>
+                  <Text style={styles.loadingTitle}>Variation #{slotIndex + 1}</Text>
+                  <Text style={styles.loadingSubtitle} numberOfLines={1}>
+                    {directive.title}
+                  </Text>
+                  <View style={styles.shimmerBar}>
+                    <View style={styles.shimmerProgress} />
+                  </View>
+                </View>
+              )}
 
-              {/* Wallpaper Image or Empty Slot */}
+              {/* Wallpaper Card or Placeholder */}
               {item ? (
-                <div
-                  className="w-full h-full relative cursor-pointer group"
-                  onClick={() => onSelectWallpaper(item)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      onSelectWallpaper(item);
-                    }
-                  }}
-                  aria-label={`View Variation ${slotIndex + 1} (${item.variationTitle}) full screen`}
+                <Pressable
+                  style={styles.cardPressable}
+                  onPress={() => onSelectWallpaper(item)}
+                  accessibilityLabel={`View Variation ${slotIndex + 1} (${item.variationTitle})`}
                 >
-                  <img
-                    src={item.imageUrl}
-                    alt={item.prompt}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    loading="lazy"
+                  <WallpaperRenderer
+                    imageUrl={item.imageUrl}
+                    rawSvgXml={item.rawSvgXml}
                   />
 
-                  {/* Top Bar on Card */}
-                  <div className="absolute top-2 inset-x-2 flex items-center justify-between z-10">
-                    <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-bold text-white shadow">
-                      #{slotIndex + 1} • {item.variationTitle.split(' ')[0]}
-                    </span>
+                  {/* Top Bar with Slot Badge and Favorite Heart */}
+                  <View style={styles.cardTopBar}>
+                    <View style={styles.slotBadge}>
+                      <Text style={styles.slotBadgeText}>
+                        #{slotIndex + 1} • {item.variationTitle.split(' ')[0]}
+                      </Text>
+                    </View>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleFavorite(item.id);
-                        }}
-                        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                        className={`p-1.5 rounded-full backdrop-blur-md border transition-colors ${
-                          isFavorite
-                            ? 'bg-rose-500/80 border-rose-400 text-white'
-                            : 'bg-black/60 border-white/10 text-white/80 hover:text-white'
-                        }`}
-                      >
-                        <Heart className="w-3.5 h-3.5" fill={isFavorite ? 'currentColor' : 'none'} />
-                      </button>
-                    </div>
-                  </div>
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        onToggleFavorite(item.id);
+                      }}
+                      style={[
+                        styles.favoriteButton,
+                        isFavorite && styles.favoriteButtonActive,
+                      ]}
+                      accessibilityLabel={
+                        isFavorite ? 'Remove from favorites' : 'Add to favorites'
+                      }
+                    >
+                      <Heart
+                        size={12}
+                        color={isFavorite ? '#ffffff' : '#e2e8f0'}
+                        fill={isFavorite ? '#f43f5e' : 'transparent'}
+                      />
+                    </Pressable>
+                  </View>
 
-                  {/* Bottom Overlay on Card */}
-                  <div className="absolute bottom-0 inset-x-0 p-2 sm:p-2.5 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex items-end justify-between z-10">
-                    <div className="min-w-0 pr-1">
-                      <div className="text-[10px] sm:text-xs font-bold text-cyan-300 truncate">
+                  {/* Bottom Bar Overlay */}
+                  <View style={styles.cardBottomBar}>
+                    <View style={styles.bottomInfoColumn}>
+                      <Text style={styles.cardTitle} numberOfLines={1}>
                         {item.variationTitle}
-                      </div>
-                      <div className="text-[9px] text-slate-300 font-mono flex items-center gap-1">
-                        <span>{item.aspectRatio}</span>
-                        <span>•</span>
-                        <span>{item.imageSize}</span>
+                      </Text>
+                      <View style={styles.cardMetaRow}>
+                        <Text style={styles.cardMetaText}>{item.aspectRatio}</Text>
+                        <Text style={styles.cardMetaDot}>•</Text>
+                        <Text style={styles.cardMetaText}>{item.imageSize}</Text>
                         {item.isRemix && (
-                          <span className="text-cyan-400 font-bold ml-0.5">REMIX</span>
+                          <Text style={styles.remixTag}>REMIX</Text>
                         )}
-                      </div>
-                    </div>
+                      </View>
+                    </View>
 
                     {/* Quick Action Buttons */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={(e) => {
+                    <View style={styles.cardActionsRow}>
+                      <Pressable
+                        onPress={(e) => {
                           e.stopPropagation();
                           onRemixWallpaper(item);
                         }}
-                        aria-label={`Remix Variation ${slotIndex + 1}`}
-                        title="Remix with this image"
-                        className="p-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/30 text-cyan-200 transition-colors"
+                        style={styles.quickRemixButton}
+                        accessibilityLabel={`Remix variation ${slotIndex + 1}`}
                       >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                      </button>
+                        <RefreshCw size={12} color="#67e8f9" />
+                      </Pressable>
 
-                      <div
-                        className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors"
-                        title="View Fullscreen"
-                      >
-                        <Maximize2 className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      <View style={styles.quickExpandIcon}>
+                        <Maximize2 size={12} color="#ffffff" />
+                      </View>
+                    </View>
+                  </View>
+                </Pressable>
               ) : (
-                /* Empty / Initial Placeholder */
-                <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-white/[0.02] text-center space-y-2">
-                  <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-500">
-                    <span className="font-bold text-xs">#{slotIndex + 1}</span>
-                  </div>
-                  <div>
-                    <span className="text-xs font-semibold text-slate-400 block">
-                      {directive.title}
-                    </span>
-                    <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
-                      {directive.subheading}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onRegenerateSlot(slotIndex)}
+                /* Empty Placeholder */
+                <View style={styles.placeholderCard}>
+                  <View style={styles.placeholderNumber}>
+                    <Text style={styles.placeholderNumberText}>#{slotIndex + 1}</Text>
+                  </View>
+                  <Text style={styles.placeholderTitle}>{directive.title}</Text>
+                  <Text style={styles.placeholderSub} numberOfLines={2}>
+                    {directive.subheading}
+                  </Text>
+                  <Pressable
+                    onPress={() => onRegenerateSlot(slotIndex)}
                     disabled={isLoading}
-                    aria-label={`Generate variation slot ${slotIndex + 1}`}
-                    className="text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 pt-1"
+                    style={styles.placeholderButton}
                   >
-                    + Tap to generate
-                  </button>
-                </div>
+                    <Text style={styles.placeholderButtonText}>+ Generate</Text>
+                  </Pressable>
+                </View>
               )}
-            </div>
+            </View>
           );
         })}
-      </div>
-    </div>
+      </View>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    gap: 10,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.8,
+  },
+  headerSubtitle: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  cardContainer: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#0a0d16',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cardPressable: {
+    width: '100%',
+    height: '100%',
+  },
+  cardTopBar: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 5,
+  },
+  slotBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 99,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  slotBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  favoriteButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  favoriteButtonActive: {
+    backgroundColor: '#e11d48',
+    borderColor: '#f43f5e',
+  },
+  cardBottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    paddingTop: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    zIndex: 5,
+  },
+  bottomInfoColumn: {
+    flex: 1,
+    paddingRight: 6,
+  },
+  cardTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#67e8f9',
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  cardMetaText: {
+    fontSize: 9,
+    fontFamily: 'monospace',
+    color: '#cbd5e1',
+  },
+  cardMetaDot: {
+    fontSize: 8,
+    color: '#64748b',
+  },
+  remixTag: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#22d3ee',
+    marginLeft: 2,
+  },
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  quickRemixButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    backgroundColor: 'rgba(6, 182, 212, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickExpandIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Loading Overlay
+  loadingOverlay: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 10,
+    backgroundColor: 'rgba(2, 6, 23, 0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+  },
+  spinnerContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  loadingTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#22d3ee',
+  },
+  loadingSubtitle: {
+    fontSize: 9,
+    color: '#94a3b8',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  shimmerBar: {
+    width: 60,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  shimmerProgress: {
+    width: '60%',
+    height: '100%',
+    backgroundColor: '#06b6d4',
+  },
+
+  // Empty placeholder
+  placeholderCard: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  },
+  placeholderNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  placeholderNumberText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748b',
+  },
+  placeholderTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#cbd5e1',
+    textAlign: 'center',
+  },
+  placeholderSub: {
+    fontSize: 9,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  placeholderButton: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
+  },
+  placeholderButtonText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#22d3ee',
+  },
+});

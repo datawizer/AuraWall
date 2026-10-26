@@ -4,8 +4,9 @@ import {
   ASPECT_RATIOS,
   IMAGE_SIZES,
   buildDiversifiedPrompt,
-  getAspectRatioStyle,
+  getAspectRatioNumeric,
   sanitizeFilename,
+  generateThemedWallpaperSvgXml,
   generateThemedWallpaperSvg,
   VARIATION_DIRECTIVES,
 } from './wallpaper-engine.ts';
@@ -49,15 +50,22 @@ test('buildDiversifiedPrompt adds remix prefix when isRemix is true', () => {
   assert.ok(remixPrompt.includes('ethereal neon forest'));
 });
 
-test('getAspectRatioStyle maps ratios to tailwind classes', () => {
-  assert.equal(getAspectRatioStyle('9:16'), 'aspect-[9/16]');
-  assert.equal(getAspectRatioStyle('1:1'), 'aspect-square');
-  assert.equal(getAspectRatioStyle('21:9'), 'aspect-[21/9]');
+test('getAspectRatioNumeric returns correct aspect ratio float', () => {
+  assert.equal(getAspectRatioNumeric('9:16'), 9 / 16);
+  assert.equal(getAspectRatioNumeric('1:1'), 1);
+  assert.equal(getAspectRatioNumeric('21:9'), 21 / 9);
 });
 
 test('sanitizeFilename produces safe, clean filenames', () => {
   const name = sanitizeFilename('Rainy Cyberpunk Lo-Fi 4K!!', 'abc123xyz');
   assert.equal(name, 'aurawall-rainy-cyberpunk-lo-fi-4k-abc123.png');
+});
+
+test('generateThemedWallpaperSvgXml produces valid SVG xml string with dimensions', () => {
+  const svgXml = generateThemedWallpaperSvgXml('rainy cyberpunk lo-fi', 0, '9:16');
+  assert.ok(svgXml.startsWith('<svg'));
+  assert.ok(svgXml.includes('viewBox="0 0 900 1600"'));
+  assert.ok(svgXml.endsWith('</svg>'));
 });
 
 test('generateThemedWallpaperSvg produces valid data URL with dimensions', () => {

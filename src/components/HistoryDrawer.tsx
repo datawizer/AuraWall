@@ -1,6 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  Pressable,
+  ScrollView,
+  Alert,
+  useWindowDimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  X,
+  Trash2,
+  Heart,
+  Clock,
+  Sparkles,
+  Smartphone,
+} from 'lucide-react-native';
 import { WallpaperItem } from '../utils/wallpaper-engine';
-import { X, Trash2, Heart, Download, RefreshCw, Smartphone } from 'lucide-react';
+import { WallpaperRenderer } from './WallpaperRenderer';
 
 interface HistoryDrawerProps {
   isOpen: boolean;
@@ -21,112 +40,348 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
   onToggleFavorite,
   favorites,
 }) => {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const [filterMode, setFilterMode] = useState<'all' | 'favorites'>('all');
+
   if (!isOpen) return null;
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Wallpaper history and saved favorites"
-      className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-sm animate-in fade-in"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md h-full bg-slate-900 border-l border-white/10 p-5 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Drawer Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-2">
-            <Smartphone className="w-5 h-5 text-cyan-400" />
-            <div>
-              <h3 className="font-bold text-base text-white">Your Wallpaper Gallery</h3>
-              <p className="text-xs text-slate-400">{history.length} saved creations</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {history.length > 0 && (
-              <button
-                onClick={onClearHistory}
-                aria-label="Clear all wallpaper history"
-                className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs transition-colors"
-                title="Clear History"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              aria-label="Close history drawer"
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+  const displayedWallpapers =
+    filterMode === 'favorites'
+      ? history.filter((item) => favorites.has(item.id))
+      : history;
 
-        {/* Wallpaper Items List */}
-        <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1">
-          {history.length === 0 ? (
-            <div className="h-64 flex flex-col items-center justify-center text-center p-6 text-slate-400">
-              <Smartphone className="w-12 h-12 text-slate-600 mb-3 stroke-[1.5]" />
-              <p className="font-semibold text-sm text-slate-300">No wallpapers saved yet</p>
-              <p className="text-xs text-slate-500 mt-1">
-                Your generated and favorited wallpapers will automatically appear here.
-              </p>
-            </div>
+  const handleConfirmClear = () => {
+    Alert.alert(
+      'Clear Gallery History',
+      'Are you sure you want to clear your saved wallpaper history? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear All', style: 'destructive', onPress: onClearHistory },
+      ]
+    );
+  };
+
+  const itemWidth = Math.max(130, (width - 32 - 12) / 2);
+  const itemHeight = itemWidth * (16 / 9);
+
+  return (
+    <Modal
+      visible={isOpen}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={[styles.modalContainer, { paddingTop: Math.max(insets.top, 12) }]}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTitleRow}>
+            <Clock size={18} color="#22d3ee" />
+            <View>
+              <Text style={styles.headerTitle}>Your Wallpaper Gallery</Text>
+              <Text style={styles.headerSubtitle}>
+                {history.length} saved creations • {favorites.size} favorites
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.headerActionsRow}>
+            {history.length > 0 && (
+              <Pressable
+                onPress={handleConfirmClear}
+                style={({ pressed }) => [styles.trashButton, pressed && styles.pressed]}
+                accessibilityLabel="Clear gallery history"
+              >
+                <Trash2 size={16} color="#fda4af" />
+              </Pressable>
+            )}
+
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+              accessibilityLabel="Close gallery"
+            >
+              <X size={18} color="#cbd5e1" />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Filter Toggle: All vs Favorites */}
+        <View style={styles.filterBar}>
+          <Pressable
+            onPress={() => setFilterMode('all')}
+            style={[styles.filterTab, filterMode === 'all' && styles.filterTabActive]}
+          >
+            <Text
+              style={[
+                styles.filterTabText,
+                filterMode === 'all' && styles.filterTabTextActive,
+              ]}
+            >
+              All Wallpapers ({history.length})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setFilterMode('favorites')}
+            style={[styles.filterTab, filterMode === 'favorites' && styles.filterTabActive]}
+          >
+            <Heart
+              size={12}
+              color={filterMode === 'favorites' ? '#f43f5e' : '#94a3b8'}
+              fill={filterMode === 'favorites' ? '#f43f5e' : 'transparent'}
+            />
+            <Text
+              style={[
+                styles.filterTabText,
+                filterMode === 'favorites' && styles.filterTabTextActive,
+              ]}
+            >
+              Favorites ({favorites.size})
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Gallery Grid */}
+        <ScrollView
+          style={styles.galleryScroll}
+          contentContainerStyle={[
+            styles.galleryContent,
+            { paddingBottom: Math.max(insets.bottom, 16) + 16 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {displayedWallpapers.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Smartphone size={40} color="#334155" strokeWidth={1.5} />
+              <Text style={styles.emptyTitle}>
+                {filterMode === 'favorites'
+                  ? 'No favorites saved yet'
+                  : 'No wallpapers generated yet'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {filterMode === 'favorites'
+                  ? 'Tap the heart icon on any wallpaper to add it to your favorites.'
+                  : 'Generated wallpapers automatically appear here.'}
+              </Text>
+            </View>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {history.map((item) => {
+            <View style={styles.grid}>
+              {displayedWallpapers.map((item) => {
                 const isFav = favorites.has(item.id);
                 return (
-                  <div
+                  <Pressable
                     key={item.id}
-                    onClick={() => {
+                    onPress={() => {
                       onSelectWallpaper(item);
                       onClose();
                     }}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`View wallpaper: ${item.prompt}`}
-                    className="group relative rounded-2xl overflow-hidden aspect-[9/16] bg-slate-950 border border-white/10 hover:border-cyan-400/50 cursor-pointer transition-all shadow-md"
+                    style={[
+                      styles.galleryCard,
+                      { width: itemWidth, height: itemHeight },
+                    ]}
                   >
-                    <img
-                      src={item.imageUrl}
-                      alt={item.prompt}
-                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      loading="lazy"
+                    <WallpaperRenderer
+                      imageUrl={item.imageUrl}
+                      rawSvgXml={item.rawSvgXml}
                     />
 
-                    {/* Top heart badge */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
+                    {/* Heart button */}
+                    <Pressable
+                      onPress={(e) => {
                         e.stopPropagation();
                         onToggleFavorite(item.id);
                       }}
-                      aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
-                      className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-md border ${
-                        isFav ? 'bg-rose-500/80 border-rose-400 text-white' : 'bg-black/60 border-white/10 text-white/80'
-                      }`}
+                      style={[
+                        styles.favoriteIconBox,
+                        isFav && styles.favoriteIconBoxActive,
+                      ]}
+                      accessibilityLabel={
+                        isFav ? 'Remove from favorites' : 'Add to favorites'
+                      }
                     >
-                      <Heart className="w-3 h-3" fill={isFav ? 'currentColor' : 'none'} />
-                    </button>
+                      <Heart
+                        size={12}
+                        color={isFav ? '#ffffff' : '#e2e8f0'}
+                        fill={isFav ? '#f43f5e' : 'transparent'}
+                      />
+                    </Pressable>
 
-                    {/* Bottom Prompt Bar */}
-                    <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
-                      <p className="text-[10px] text-white font-medium line-clamp-1">{item.prompt}</p>
-                      <div className="text-[9px] text-cyan-300 font-mono mt-0.5">
+                    {/* Bottom caption */}
+                    <View style={styles.cardCaptionBox}>
+                      <Text style={styles.cardPromptText} numberOfLines={1}>
+                        {item.prompt}
+                      </Text>
+                      <Text style={styles.cardMetaText}>
                         {item.aspectRatio} • {item.imageSize}
-                      </div>
-                    </div>
-                  </div>
+                      </Text>
+                    </View>
+                  </Pressable>
                 );
               })}
-            </div>
+            </View>
           )}
-        </div>
-      </div>
-    </div>
+        </ScrollView>
+      </View>
+    </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#0a0d16',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  headerSubtitle: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginTop: 1,
+  },
+  headerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  trashButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(225, 29, 72, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBar: {
+    flexDirection: 'row',
+    padding: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  filterTabActive: {
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    borderColor: '#06b6d4',
+  },
+  filterTabText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
+  filterTabTextActive: {
+    color: '#22d3ee',
+    fontWeight: '700',
+  },
+  galleryScroll: {
+    flex: 1,
+  },
+  galleryContent: {
+    padding: 16,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  galleryCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#020617',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'relative',
+  },
+  favoriteIconBox: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  favoriteIconBoxActive: {
+    backgroundColor: '#e11d48',
+  },
+  cardCaptionBox: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    zIndex: 5,
+  },
+  cardPromptText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  cardMetaText: {
+    fontSize: 9,
+    color: '#22d3ee',
+    fontFamily: 'monospace',
+    marginTop: 1,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#cbd5e1',
+  },
+  emptySubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    textAlign: 'center',
+    maxWidth: 240,
+    lineHeight: 16,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+});

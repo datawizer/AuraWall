@@ -1,5 +1,7 @@
 import React from 'react';
-import { Sparkles, History, Settings, Smartphone } from 'lucide-react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Smartphone, Sparkles, Clock, Settings } from 'lucide-react-native';
 import { ModelType } from '../utils/wallpaper-engine';
 
 interface HeaderProps {
@@ -15,59 +17,186 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHistory,
   onOpenSettings,
 }) => {
+  const insets = useSafeAreaInsets();
+
+  const modelLabel =
+    currentModel === 'gemini-3-pro-image-preview' ? 'Gemini 3 Pro' : 'Gemini Nano';
+
   return (
-    <header className="sticky top-0 z-30 w-full glass-panel border-b border-white/10 px-4 py-3 sm:px-6">
-      <div className="max-w-4xl mx-auto flex items-center justify-between">
+    <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
+      <View style={styles.contentRow}>
         {/* Brand / Logo */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 ring-1 ring-white/20">
-            <Smartphone className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-base tracking-tight text-white">AuraWall</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 text-cyan-300 border border-cyan-500/30">
-                Studio
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 font-medium">AI Phone Wallpaper Generator</p>
-          </div>
-        </div>
+        <View style={styles.brandRow}>
+          <View style={styles.logoIconBadge}>
+            <Smartphone size={18} color="#ffffff" strokeWidth={2.5} />
+          </View>
+          <View>
+            <View style={styles.titleRow}>
+              <Text style={styles.brandTitle}>AuraWall</Text>
+              <View style={styles.studioBadge}>
+                <Text style={styles.studioBadgeText}>STUDIO</Text>
+              </View>
+            </View>
+            <Text style={styles.brandSubtitle}>AI Phone Wallpaper Generator</Text>
+          </View>
+        </View>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-2">
-          {/* Active Model Indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-300">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="font-mono text-[11px] truncate max-w-[130px]">
-              {currentModel === 'gemini-3-pro-image-preview' ? 'Gemini 3 Pro' : 'Gemini Nano'}
-            </span>
-          </div>
+        <View style={styles.actionsRow}>
+          {/* Active Model Indicator Chip */}
+          <View style={styles.modelBadge}>
+            <Sparkles size={12} color="#22d3ee" />
+            <Text style={styles.modelBadgeText} numberOfLines={1}>
+              {modelLabel}
+            </Text>
+          </View>
 
-          {/* History Drawer Trigger */}
-          <button
-            onClick={onOpenHistory}
-            aria-label={`Open wallpaper history, ${historyCount} items`}
-            className="relative p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-colors"
+          {/* History / Gallery Button */}
+          <Pressable
+            onPress={onOpenHistory}
+            style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
+            accessibilityLabel={`Open wallpaper history, ${historyCount} items`}
           >
-            <History className="w-4 h-4" />
+            <Clock size={18} color="#cbd5e1" />
             {historyCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-500 text-slate-950 font-bold text-[9px] rounded-full flex items-center justify-center">
-                {historyCount > 9 ? '9+' : historyCount}
-              </span>
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>
+                  {historyCount > 9 ? '9+' : historyCount}
+                </Text>
+              </View>
             )}
-          </button>
+          </Pressable>
 
-          {/* Settings Trigger */}
-          <button
-            onClick={onOpenSettings}
-            aria-label="Open generation settings and affordances"
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-colors"
+          {/* Settings Button */}
+          <Pressable
+            onPress={onOpenSettings}
+            style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
+            accessibilityLabel="Open settings"
           >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </header>
+            <Settings size={18} color="#cbd5e1" />
+          </Pressable>
+        </View>
+      </View>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  headerContainer: {
+    backgroundColor: '#0a0b12',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    zIndex: 20,
+  },
+  contentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#0284c7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  brandTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: -0.3,
+  },
+  studioBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 99,
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.35)',
+  },
+  studioBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#67e8f9',
+    letterSpacing: 0.6,
+  },
+  brandSubtitle: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#94a3b8',
+    marginTop: 1,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modelBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#cbd5e1',
+  },
+  iconButton: {
+    position: 'relative',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButtonPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    transform: [{ scale: 0.95 }],
+  },
+  countBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: '#06b6d4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#020617',
+  },
+});

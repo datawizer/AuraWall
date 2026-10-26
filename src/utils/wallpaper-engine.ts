@@ -1,5 +1,5 @@
 /**
- * Pure wallpaper logic and data helpers for AuraWall
+ * Pure wallpaper logic and data helpers for AuraWall (React Native Expo)
  */
 
 export type AspectRatio = '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '9:16' | '16:9' | '21:9';
@@ -45,8 +45,7 @@ export interface VibePreset {
   title: string;
   vibe: string;
   tag: string;
-  gradient: string;
-  iconName?: string;
+  gradientColors: [string, string, string];
 }
 
 export const VIBE_PRESETS: VibePreset[] = [
@@ -55,43 +54,66 @@ export const VIBE_PRESETS: VibePreset[] = [
     title: 'Rainy Cyberpunk',
     vibe: 'rainy cyberpunk lo-fi city street, neon reflections on wet asphalt, soft moody fog, glowing storefront signs, cinematic purple and cyan lighting, phone wallpaper composition',
     tag: 'Cyberpunk',
-    gradient: 'from-fuchsia-900 via-indigo-950 to-slate-950',
+    gradientColors: ['#701a75', '#1e1b4b', '#020617'],
   },
   {
     id: 'ghibli-sunset',
     title: 'Ghibli Meadow',
     vibe: 'peaceful anime meadow hill at golden hour, fluffy pastel clouds, gentle wind breeze, lone ancient oak tree, warm nostalgic sunset anime art style, wallpaper masterpiece',
     tag: 'Anime Vibe',
-    gradient: 'from-amber-700 via-orange-950 to-emerald-950',
+    gradientColors: ['#b45309', '#431407', '#022c22'],
   },
   {
     id: 'oled-noir',
     title: 'Dark OLED Noir',
     vibe: 'deep dark OLED true black minimalism, sleek metallic geometry, subtle luminous crimson edge lighting, matte dark obsidian textures, ultra clean wallpaper',
     tag: 'OLED Black',
-    gradient: 'from-zinc-900 via-neutral-950 to-black',
+    gradientColors: ['#18181b', '#0a0a0a', '#000000'],
   },
   {
     id: 'pastel-minimal',
     title: 'Pastel Dream',
     vibe: 'minimalist architectural archway in soft desert mist, pastel peach and lavender gradient sky, serene calm dunes, clean negative space for phone lock screen',
     tag: 'Minimal',
-    gradient: 'from-pink-800 via-purple-950 to-slate-950',
+    gradientColors: ['#9d174d', '#3b0764', '#0f172a'],
   },
   {
     id: 'cosmic-nebula',
     title: 'Cosmic Drift',
     vibe: 'deep space ethereal nebula, stardust spiral, iridescent celestial auroras, dark starry void, cinematic 8k wallpaper',
     tag: 'Sci-Fi',
-    gradient: 'from-violet-950 via-purple-950 to-blue-950',
+    gradientColors: ['#2e1065', '#3b0764', '#172554'],
   },
   {
     id: 'tokyo-midnight',
     title: 'Tokyo Midnight',
     vibe: 'midnight Tokyo back-alley under soft drizzle, illuminated vending machines glowing warm amber, cozy ramen bar doorway, film grain aesthetic',
     tag: 'Urban',
-    gradient: 'from-rose-950 via-sky-950 to-neutral-950',
+    gradientColors: ['#4c0519', '#082f49', '#171717'],
   },
+];
+
+export const SURPRISE_VIBES = [
+  'rainy cyberpunk lo-fi alley with neon holographic signs and wet pavement reflection',
+  'ethereal studio ghibli summer hill with wildflowers and distant cumulonimbus clouds',
+  'dark OLED minimalist obsidian monolith with glowing gold geometric seam lines',
+  'tokyo midnight rainy convenience store front with warm ambient interior light',
+  'peaceful vaporwave purple beach sunset with grid horizon and low polygon palm trees',
+  'cozy loft window overlooking rainy seattle skyline with steaming coffee mug silhouette',
+  'minimalist scandinavian pine forest shrouded in ethereal morning mist',
+  'cosmic surrealist planetary eclipse with violet nebula dust and iridescent stars',
+  'warm retro 1970s desert dunes with gradient sunset and film grain texture',
+  'futuristic organic bioluminescent deep sea cavern with glowing jellyfish',
+];
+
+export const MOOD_TAGS = [
+  '🌧️ Wet Raindrops',
+  '⚡ Neon Bloom',
+  '🌌 True OLED Black',
+  '🌅 Golden Hour',
+  '☕ Moody Lo-Fi',
+  '🎨 Film Grain',
+  '✨ Dreamy Bokeh',
 ];
 
 export interface VariationDirective {
@@ -134,13 +156,14 @@ export interface WallpaperItem {
   aspectRatio: AspectRatio;
   imageSize: ImageSize;
   model: ModelType;
-  imageUrl: string;
+  imageUrl: string; // base64 PNG data URL, remote URL, or SVG string/data URI
   variationIndex: number;
   variationTitle: string;
   createdAt: number;
   isRemix?: boolean;
   parentReferenceId?: string;
   favorite?: boolean;
+  rawSvgXml?: string; // Optional raw SVG XML string for fast native rendering via SvgXml
 }
 
 /**
@@ -154,38 +177,20 @@ export function buildDiversifiedPrompt(
 ): string {
   const cleanPrompt = basePrompt.trim();
   const directive = VARIATION_DIRECTIVES[variationIndex % VARIATION_DIRECTIVES.length];
-  
-  const remixPrefix = isRemix 
-    ? 'Remix and evolve this wallpaper while maintaining its artistic color harmony, atmosphere, and visual identity: ' 
+
+  const remixPrefix = isRemix
+    ? 'Remix and evolve this wallpaper while maintaining its artistic color harmony, atmosphere, and visual identity: '
     : '';
 
   return `${remixPrefix}${cleanPrompt}. Variation styling: ${directive.perspectiveMod}. Format optimized for ${aspectRatio} aspect ratio mobile wallpaper, clean aesthetic, high aesthetic quality, no text artifacts, no phone mockups inside image.`;
 }
 
 /**
- * Calculate aspect ratio numeric percentage for responsive layout
+ * Calculate numeric aspect ratio for React Native styles: { aspectRatio: width / height }
  */
-export function getAspectRatioStyle(aspectRatio: AspectRatio): string {
-  switch (aspectRatio) {
-    case '9:16':
-      return 'aspect-[9/16]';
-    case '1:1':
-      return 'aspect-square';
-    case '2:3':
-      return 'aspect-[2/3]';
-    case '3:2':
-      return 'aspect-[3/2]';
-    case '3:4':
-      return 'aspect-[3/4]';
-    case '4:3':
-      return 'aspect-[4/3]';
-    case '16:9':
-      return 'aspect-[16/9]';
-    case '21:9':
-      return 'aspect-[21/9]';
-    default:
-      return 'aspect-[9/16]';
-  }
+export function getAspectRatioNumeric(aspectRatio: AspectRatio): number {
+  const opt = ASPECT_RATIOS.find((r) => r.id === aspectRatio) || ASPECT_RATIOS[0];
+  return opt.widthRatio / opt.heightRatio;
 }
 
 /**
@@ -209,9 +214,10 @@ export function sanitizeFilename(prompt: string, id: string): string {
 }
 
 /**
- * Procedural SVG generator for graceful offline/demo fallbacks
+ * Procedural SVG generator for graceful offline/demo fallbacks.
+ * Returns clean, valid SVG XML string.
  */
-export function generateThemedWallpaperSvg(
+export function generateThemedWallpaperSvgXml(
   prompt: string,
   variationIndex: number,
   aspectRatio: AspectRatio
@@ -255,7 +261,7 @@ export function generateThemedWallpaperSvg(
   }
 
   const vOffset = (variationIndex * 25) % 100;
-  const vScale = 1 + (variationIndex * 0.15);
+  const vScale = 1 + variationIndex * 0.15;
 
   let innerGraphics = '';
 
@@ -267,24 +273,21 @@ export function generateThemedWallpaperSvg(
             <stop offset="0%" stop-color="${c3}" stop-opacity="0.8" />
             <stop offset="100%" stop-color="${c4}" stop-opacity="0.8" />
           </linearGradient>
-          <filter id="blur${variationIndex}" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="8" />
-          </filter>
         </defs>
         <!-- Rainy City Silhouette -->
         <rect x="${w * 0.1}" y="${h * 0.45}" width="${w * 0.2}" height="${h * 0.5}" fill="#0d0d18" />
         <rect x="${w * 0.35}" y="${h * 0.35}" width="${w * 0.3}" height="${h * 0.6}" fill="#0a0a14" />
         <rect x="${w * 0.7}" y="${h * 0.5}" width="${w * 0.25}" height="${h * 0.45}" fill="#0f0f20" />
-        
+
         <!-- Glowing signs and towers -->
-        <circle cx="${w * 0.5 + vOffset - 50}" cy="${h * 0.38}" r="${18 * vScale}" fill="url(#neonGlow${variationIndex})" filter="url(#blur${variationIndex})" />
+        <circle cx="${w * 0.5 + vOffset - 50}" cy="${h * 0.38}" r="${18 * vScale}" fill="url(#neonGlow${variationIndex})" />
         <circle cx="${w * 0.5 + vOffset - 50}" cy="${h * 0.38}" r="${10 * vScale}" fill="#ffffff" />
-        
+
         <!-- Rain lines -->
-        <path d="M${w*0.2} ${h*0.1} L${w*0.15} ${h*0.3} M${w*0.5} ${h*0.15} L${w*0.45} ${h*0.35} M${w*0.8} ${h*0.2} L${w*0.75} ${h*0.4}" stroke="${c3}" stroke-width="1.5" stroke-opacity="0.4" stroke-dasharray="8 12" />
-        
+        <path d="M${w * 0.2} ${h * 0.1} L${w * 0.15} ${h * 0.3} M${w * 0.5} ${h * 0.15} L${w * 0.45} ${h * 0.35} M${w * 0.8} ${h * 0.2} L${w * 0.75} ${h * 0.4}" stroke="${c3}" stroke-width="1.5" stroke-opacity="0.4" stroke-dasharray="8 12" />
+
         <!-- Wet reflection ground -->
-        <ellipse cx="${w * 0.5}" cy="${h * 0.88}" rx="${w * 0.45}" ry="${h * 0.08}" fill="url(#neonGlow${variationIndex})" opacity="0.4" filter="url(#blur${variationIndex})" />
+        <ellipse cx="${w * 0.5}" cy="${h * 0.88}" rx="${w * 0.45}" ry="${h * 0.08}" fill="url(#neonGlow${variationIndex})" opacity="0.4" />
       </g>
     `;
   } else if (motif === 'sunset') {
@@ -303,7 +306,7 @@ export function generateThemedWallpaperSvg(
   } else if (motif === 'noir') {
     innerGraphics = `
       <!-- Deep OLED Geometric Angles -->
-      <polygon points="${w*0.1},${h*0.2} ${w*0.9},${h*0.4} ${w*0.7},${h*0.85} ${w*0.2},${h*0.75}" fill="#0d0d10" stroke="${c3}" stroke-width="1.5" opacity="0.9" />
+      <polygon points="${w * 0.1},${h * 0.2} ${w * 0.9},${h * 0.4} ${w * 0.7},${h * 0.85} ${w * 0.2},${h * 0.75}" fill="#0d0d10" stroke="${c3}" stroke-width="1.5" opacity="0.9" />
       <circle cx="${w * 0.6}" cy="${h * 0.45}" r="${14 * vScale}" fill="${c3}" opacity="0.8" />
     `;
   } else {
@@ -320,7 +323,7 @@ export function generateThemedWallpaperSvg(
     `;
   }
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="100%">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="100%">
     <defs>
       <linearGradient id="bg${variationIndex}" x1="0%" y1="0%" x2="0%" y2="100%">
         <stop offset="0%" stop-color="${c1}" />
@@ -333,6 +336,16 @@ export function generateThemedWallpaperSvg(
     <!-- Subtle Grid Overlay -->
     <rect width="${w}" height="${h}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1" />
   </svg>`;
+}
 
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+/**
+ * Returns data URI for SVG (compatible with web and image renderers)
+ */
+export function generateThemedWallpaperSvg(
+  prompt: string,
+  variationIndex: number,
+  aspectRatio: AspectRatio
+): string {
+  const xml = generateThemedWallpaperSvgXml(prompt, variationIndex, aspectRatio);
+  return `data:image/svg+xml;utf8,${encodeURIComponent(xml)}`;
 }

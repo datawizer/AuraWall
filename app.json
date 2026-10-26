@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "AuraWall",
+    "slug": "aurawall",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#07080c"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.datawizer.aurawall",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "AuraWall needs access to your photo library to save generated wallpapers.",
+        "NSPhotoLibraryAddUsageDescription": "AuraWall needs access to save wallpapers to your photo gallery."
+      }
+    },
+    "android": {
+      "package": "com.datawizer.aurawall",
+      "adaptiveIcon": {
+        "backgroundColor": "#07080c"
+      },
+      "permissions": [
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow AuraWall to save wallpapers to your photos.",
+          "savePhotosPermission": "Allow AuraWall to save wallpapers to your photos."
+        }
+      ]
+    ]
+  }
+}
